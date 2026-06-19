@@ -170,6 +170,7 @@ class Engine
 {
 public:
 	int eval(Board& b);
+	int Quiesce(Board& board, int alpha, int beta, int cap);
     uint16_t minmax_best_move(Board& board, int depth);
     int search(Board& board, int depth, int alpha, int beta);
 };

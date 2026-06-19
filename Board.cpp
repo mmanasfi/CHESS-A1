@@ -72,7 +72,7 @@ Piece Board::get_piece(uint8_t square)
 
 int Board::score_move(uint16_t move)
 {
-	int flag = (move >> 12);
+	int flag = (move >> 12) ;
 	int cap_piece_value = ENGINE_CONSTANTS::PIECE_VALUE[get_piece((move & 0x0fc0) >> 6)];
 	int mask_c = cap_piece_value >> 31;
 

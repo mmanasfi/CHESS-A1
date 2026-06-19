@@ -29,8 +29,8 @@ struct MoveList
 	uint16_t moves[256];// each contains: source, destination and flags (0-5, 6-11, 12-15)
 	int scores[256];
 	int count = 0;
-	static constexpr int IS_CAPTURE[16] = { 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1};
-	static constexpr int MoveScores[16] = { 0, 5, 0, 950, 20, 20, 20, 20, 900, 320, 550, 330, 900, 320, 550, 330 };
+	static constexpr int IS_CAPTURE[16] = { 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1};
+	static constexpr int MoveScores[16] = { 0, 5, 0, 950, 20, 20, 20, 20, 550, 320, 330, 900, 550, 320, 330, 900 };
 	void add_move(uint16_t move, int score) 
 	{
 		moves[count] = move;

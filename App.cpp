@@ -23,6 +23,8 @@ uint64_t current_move_mask = 0;
 
 bool flip_view = false; // white down 
 
+const int DEPTH = 5;
+
 //small helper for flip
 int view_square(int row, int col)
 {
@@ -194,7 +196,7 @@ void App::Update()
 
         auto start = std::chrono::high_resolution_clock::now();
 
-        uint16_t best_next_move = e.minmax_best_move(active_board, 7);
+        uint16_t best_next_move = e.minmax_best_move(active_board, DEPTH);
 
         auto end = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
@@ -226,6 +228,12 @@ void App::Update()
     if (ImGui::IsKeyPressed(ImGuiKey_F, false))
     {
         flip_view = !flip_view;
+    }
+    if (ImGui::IsKeyPressed(ImGuiKey_Escape, false))
+    {
+        active_board = history.states[0];
+        history.cur_idx = 0;
+        history.max_idx = 0;
     }
     // Handle window being minimized or screen locked
     if (g_SwapChainOccluded && g_pSwapChain->Present(0, DXGI_PRESENT_TEST) == DXGI_STATUS_OCCLUDED)
