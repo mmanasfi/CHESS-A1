@@ -4,6 +4,9 @@
 int Engine::eval(Board& board)
 {
 	int ret = 0;
+	int mg_score = 0;
+	int eg_score = 0;
+	int phase_det = 0;
 
 	unsigned long general_source_index = 0;
 
@@ -13,12 +16,20 @@ int Engine::eval(Board& board)
 		uint64_t current_all_side_pieces = board.pieces_occ[i];
 		while (_BitScanForward64(&general_source_index, current_all_side_pieces))
 		{
-			ret += ((ENGINE_CONSTANTS::PIECE_VALUE[i]) + (ENGINE_CONSTANTS::ALL_PST[i][general_source_index])); // raw value + pos value
+			phase_det += ENGINE_CONSTANTS::PHASE_VALUE[i % 6]; // wrap around, starting to optimize shit instead of having duplicate entries for black/white.
+			int xor_ = i < 6 ? 0 : 56; // xoring square index with 56 gives black's position in "white" terms to use the white PST (mirrored)
+			int multip = i < 6 ? 1 : -1;
+			mg_score += ((ENGINE_CONSTANTS::PIECE_VALUE[i]) + (ENGINE_CONSTANTS::MG_PST[i % 6][general_source_index ^ xor_])* multip);
+			eg_score += ((ENGINE_CONSTANTS::PIECE_VALUE[i]) + (ENGINE_CONSTANTS::EG_PST[i % 6][general_source_index ^ xor_])* multip);
+
 			current_all_side_pieces &= (current_all_side_pieces - 1);
 		}
 	}
+	float how_close_to_eg = phase_det / 40.f; // 1 implies furthest, as in starting position, 0 implies eg
+	ret += (mg_score * how_close_to_eg) + (eg_score * (1 - how_close_to_eg));
 	return ret;
 }
+
 
 uint16_t Engine::minmax_best_move(Board& board, int depth)
 {

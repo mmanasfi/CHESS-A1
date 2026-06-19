@@ -21,8 +21,23 @@ int selected_piece_index = -1;
 MoveList last_cached_moves;
 uint64_t current_move_mask = 0;
 
+bool flip_view = false; // white down 
+
+//small helper for flip
+int view_square(int row, int col)
+{
+    if (!flip_view)
+        return row * 8 + col;
+
+    return (7 - row) * 8 + (7 - col);
+}
+
 bool App::Init()
 {
+    history.states[0] = Board();
+    history.cur_idx = 0;
+    history.max_idx = 0;
+
     // Make process DPI aware and obtain main monitor scale
     ImGui_ImplWin32_EnableDpiAwareness();
     float main_scale = ImGui_ImplWin32_GetDpiScaleForMonitor(::MonitorFromPoint(POINT{ 0, 0 }, MONITOR_DEFAULTTOPRIMARY));
@@ -98,7 +113,7 @@ bool App::Init()
    ;
 }
 
-void App::Update(Board& board)
+void App::Update()
 {
     // Poll and handle messages (inputs, window resize, etc.)
             // See the WndProc() function below for our to dispatch events to the Win32 backend.
@@ -107,85 +122,110 @@ void App::Update(Board& board)
     {
         ::TranslateMessage(&msg);
         ::DispatchMessage(&msg);
-        if(msg.message == WM_LBUTTONDOWN)
-        {
-            int xPos = GET_X_LPARAM(msg.lParam);
-            int yPos = GET_Y_LPARAM(msg.lParam);
-            int square_index_clicked = ((int)((yPos - border_padding) / (square_height))) * 8 + ((int)((xPos - border_padding)) / (square_width));
-            if (selected_piece_index == -1)
-            {           
-                if (board.get_piece(square_index_clicked)!=12 && !(board.white_to_move && (board.side_total_occ[1] & (1ULL << square_index_clicked))) && !(!board.white_to_move && (board.side_total_occ[0] & (1ULL << square_index_clicked))))
-                {
-                    selected_piece_index = square_index_clicked;
-                    board.generate_moves(last_cached_moves);
-                    current_move_mask = 0;
-                    for (int i = 0; i < 256; i++)
-                    {
-                        if (last_cached_moves.moves[i] != 0 && (last_cached_moves.moves[i] & 0x003f) == selected_piece_index)
-                            current_move_mask |= (1ULL << ((last_cached_moves.moves[i] & 0x0fc0) >> 6));
-                    }
-                }
-            }
-            else
-            {
-                if (current_move_mask & (1ULL << square_index_clicked))
-                {
-                    for (int i = 0; i < last_cached_moves.count; i++)
-                    {
-                        uint16_t curMove = last_cached_moves.moves[i];
-                        if ((curMove & 0x003f) == selected_piece_index && (((curMove & 0x0fc0) >> 6)) == square_index_clicked)
-                        {
-                            board.make_move(curMove);
-                            break;
-                        }
-                    }
 
-                    current_move_mask = 0;
-                    selected_piece_index = -1;
-                }
-                else if(board.get_piece(square_index_clicked) != 12 && !(board.white_to_move && (board.side_total_occ[1] & (1ULL << square_index_clicked))) && !(!board.white_to_move && (board.side_total_occ[0] & (1ULL << square_index_clicked))))
-                {
-                    selected_piece_index = square_index_clicked;
-                    board.generate_moves(last_cached_moves);
-                    current_move_mask = 0;
-                    for (int i = 0; i < 256; i++)
-                    {
-                        if (last_cached_moves.moves[i] != 0 && (last_cached_moves.moves[i] & 0x003f) == selected_piece_index)
-                            current_move_mask |= (1ULL << ((last_cached_moves.moves[i] & 0x0fc0) >> 6));
-                    }
-                }
-                else
-                {
-                    current_move_mask = 0;
-                    selected_piece_index = -1;
-                }
 
-            }
-        }
-        if (msg.message == WM_RBUTTONDOWN)
-        {
-            static Engine e;
-
-            auto start = std::chrono::high_resolution_clock::now();
-
-            uint16_t best_next_move = e.minmax_best_move(board, 6);
-
-            auto end = std::chrono::high_resolution_clock::now();
-            auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-
-            if (best_next_move == UINT16_MAX)
-            {
-                std::cout << "Whoops! someone is checkmated!" << "\n";
-            }
-            else
-            {
-                std::cout << "Move: " << (best_next_move & 0x003f) << " To: " << ((best_next_move & 0x0fc0) >> 6) <<" "<<e.eval(board) <<" "<<duration.count()<<"ms" << "\n";
-                board.make_move(best_next_move);
-            }
-            
-        }
         if (msg.message == WM_QUIT)
             done = true;
+    }
+    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+    {
+        int xPos = GET_X_LPARAM(msg.lParam);
+        int yPos = GET_Y_LPARAM(msg.lParam);
+        int clicked_row = (int)((yPos - border_padding) / (square_height));
+        int clicked_col = ((int)((xPos - border_padding)) / (square_width));
+        int square_index_clicked = view_square(clicked_row,clicked_col);
+        if (selected_piece_index == -1)
+        {
+            if (active_board.get_piece(square_index_clicked) != 12 && !(active_board.white_to_move && (active_board.side_total_occ[1] & (1ULL << square_index_clicked))) && !(!active_board.white_to_move && (active_board.side_total_occ[0] & (1ULL << square_index_clicked))))
+            {
+                selected_piece_index = square_index_clicked;
+                active_board.generate_moves(last_cached_moves);
+                current_move_mask = 0;
+                for (int i = 0; i < 256; i++)
+                {
+                    if (last_cached_moves.moves[i] != 0 && (last_cached_moves.moves[i] & 0x003f) == selected_piece_index)
+                        current_move_mask |= (1ULL << ((last_cached_moves.moves[i] & 0x0fc0) >> 6));
+                }
+            }
+        }
+        else
+        {
+            if (current_move_mask & (1ULL << square_index_clicked))
+            {
+                for (int i = 0; i < last_cached_moves.count; i++)
+                {
+                    uint16_t curMove = last_cached_moves.moves[i];
+                    if ((curMove & 0x003f) == selected_piece_index && (((curMove & 0x0fc0) >> 6)) == square_index_clicked)
+                    {
+                        Board carbon_copy = active_board;
+                        carbon_copy.make_move(curMove);
+                        history.states[++history.cur_idx] = carbon_copy;
+                        history.max_idx = history.cur_idx;
+                        active_board = carbon_copy;
+                        break;
+                    }
+                }
+
+                current_move_mask = 0;
+                selected_piece_index = -1;
+            }
+            else if (active_board.get_piece(square_index_clicked) != 12 && !(active_board.white_to_move && (active_board.side_total_occ[1] & (1ULL << square_index_clicked))) && !(!active_board.white_to_move && (active_board.side_total_occ[0] & (1ULL << square_index_clicked))))
+            {
+                selected_piece_index = square_index_clicked;
+                active_board.generate_moves(last_cached_moves);
+                current_move_mask = 0;
+                for (int i = 0; i < 256; i++)
+                {
+                    if (last_cached_moves.moves[i] != 0 && (last_cached_moves.moves[i] & 0x003f) == selected_piece_index)
+                        current_move_mask |= (1ULL << ((last_cached_moves.moves[i] & 0x0fc0) >> 6));
+                }
+            }
+            else
+            {
+                current_move_mask = 0;
+                selected_piece_index = -1;
+            }
+
+        }
+    }
+    if (ImGui::IsMouseClicked(ImGuiMouseButton_Right))
+    {
+        static Engine e;
+
+        auto start = std::chrono::high_resolution_clock::now();
+
+        uint16_t best_next_move = e.minmax_best_move(active_board, 7);
+
+        auto end = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+
+        if (best_next_move == UINT16_MAX)
+        {
+            std::cout << "Whoops! someone is checkmated!" << "\n";
+        }
+        else
+        {
+            std::cout << "Move: " << (best_next_move & 0x003f) << " To: " << ((best_next_move & 0x0fc0) >> 6) << " " << e.eval(active_board) << " " << duration.count() << "ms" << "\n";
+            Board carbon_copy = active_board;
+            carbon_copy.make_move(best_next_move);
+            history.states[++history.cur_idx] = carbon_copy;
+            history.max_idx = history.cur_idx;
+            active_board = carbon_copy;
+        }
+    }
+    if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow, false))
+    {
+        if (history.cur_idx > 0)
+            active_board = history.states[--history.cur_idx];
+    }
+    else if (ImGui::IsKeyPressed(ImGuiKey_RightArrow, false))
+    {
+        if (history.cur_idx < history.max_idx)
+            active_board = history.states[++history.cur_idx];
+    }
+    if (ImGui::IsKeyPressed(ImGuiKey_F, false))
+    {
+        flip_view = !flip_view;
     }
     // Handle window being minimized or screen locked
     if (g_SwapChainOccluded && g_pSwapChain->Present(0, DXGI_PRESENT_TEST) == DXGI_STATUS_OCCLUDED)
@@ -232,7 +272,6 @@ void App::Update(Board& board)
     square_height = (viewportSize.y - border_padding * 2) / 8.f;
     UINT32 square_draw_color;
 
-    
     for (int row = 0; row < 8; row++)
     {
         if (row % 2 == 0)
@@ -241,7 +280,7 @@ void App::Update(Board& board)
             square_draw_color = square2_color;
         for (int col = 0; col < 8; col++)
         {
-            int square_index = row * 8 + col;
+            int square_index = view_square(row,col);
             if (selected_piece_index!=-1 && (current_move_mask & (1ULL << square_index)))
             {
                 drawList->AddRectFilled(ImVec2(border_padding + square_width * col, border_padding + square_height * row), ImVec2(border_padding + square_width * col + square_width, border_padding + square_height * row + square_height), IM_COL32(255, 12, 12, 50), 0, 0);
@@ -253,8 +292,8 @@ void App::Update(Board& board)
                 else
                     drawList->AddRectFilled(ImVec2(border_padding + square_width * col, border_padding + square_height * row), ImVec2(border_padding + square_width * col + square_width, border_padding + square_height * row + square_height), square_draw_color, 0, 0);
             }  
-            drawList->AddImage((ImTextureID)textures[board.get_piece(row*8+col)], ImVec2(border_padding + square_width * col, border_padding + square_height * row), ImVec2(border_padding + square_width * col + square_width, border_padding + square_height * row + square_height));
-            drawList->AddText(NULL, 21.0f, ImVec2(border_padding + square_width * col + square_width - 25, border_padding + square_height * row + square_height - 20), IM_COL32(255, 0, 0, 255), std::to_string(row * 8 + col).c_str());            
+            drawList->AddImage((ImTextureID)textures[active_board.get_piece(view_square(row,col))], ImVec2(border_padding + square_width * col, border_padding + square_height * row), ImVec2(border_padding + square_width * col + square_width, border_padding + square_height * row + square_height));
+            drawList->AddText(NULL, 21.0f, ImVec2(border_padding + square_width * col + square_width - 25, border_padding + square_height * row + square_height - 20), IM_COL32(255, 0, 0, 255), std::to_string(view_square(row,col)).c_str());            
             if (square_draw_color == square2_color)
                 square_draw_color = square1_color;
             else

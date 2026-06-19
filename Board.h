@@ -83,3 +83,10 @@ public:
 	bool is_square_attacked(int king_index, bool white_attacking);
 	int score_move(uint16_t move);
 };
+
+// undo/redo
+struct History {
+	Board states[512];
+	int cur_idx = -1;
+	int max_idx = -1;
+};

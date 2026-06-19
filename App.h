@@ -16,10 +16,11 @@ class App
 {
 public:
 	bool Init();
-	void Update(Board& board);
+	void Update();
 	void Shutdown();
 	bool isDone();
 private:
+	//window
 	HWND hwnd = nullptr;
 	WNDCLASSEXW wc = {};
 	ID3D11Device* g_pd3dDevice = nullptr;
@@ -27,10 +28,10 @@ private:
 	IDXGISwapChain* g_pSwapChain = nullptr;
 	bool g_SwapChainOccluded = false;
 	ID3D11RenderTargetView* g_mainRenderTargetView = nullptr;
-	bool done = false;
 	ID3D11ShaderResourceView* textures[13];
 	ImVec4 background_color = ImVec4(0.1f, 0.1f, 0.1f, 1.00f);
 	static UINT g_ResizeWidth , g_ResizeHeight;
+	bool done = false;
 	bool CreateDeviceD3D(HWND hWnd);
 	void CleanupDeviceD3D();
 	void CreateRenderTarget();
@@ -38,6 +39,11 @@ private:
 	bool LoadTextureFromMemory(const void* data, size_t data_size, ID3D11ShaderResourceView** out_srv, int* out_width, int* out_height);
 	bool LoadTextureFromFile(const char* file_name, ID3D11ShaderResourceView** out_srv, int* out_width, int* out_height);
 	static LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
+	//chess
+	History history;
+	Board active_board;
+
 	
 };
 
