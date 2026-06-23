@@ -23,7 +23,8 @@ uint64_t current_move_mask = 0;
 
 bool flip_view = false; // white down 
 
-const int DEPTH = 5;
+int depth = 5;
+int last_moved[2] = {-1,-1};
 
 //small helper for flip
 int view_square(int row, int col)
@@ -164,6 +165,8 @@ void App::Update()
                         history.states[++history.cur_idx] = carbon_copy;
                         history.max_idx = history.cur_idx;
                         active_board = carbon_copy;
+                        last_moved[0] = ((curMove & 0x0fc0) >> 6);
+                        last_moved[1] = curMove & 0x003f;
                         break;
                     }
                 }
@@ -196,7 +199,7 @@ void App::Update()
 
         auto start = std::chrono::high_resolution_clock::now();
 
-        uint16_t best_next_move = e.minmax_best_move(active_board, DEPTH);
+        uint16_t best_next_move = e.minmax_best_move(active_board, depth);
 
         auto end = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
@@ -212,6 +215,8 @@ void App::Update()
             carbon_copy.make_move(best_next_move);
             history.states[++history.cur_idx] = carbon_copy;
             history.max_idx = history.cur_idx;
+            last_moved[0] = ((best_next_move & 0x0fc0) >> 6);
+            last_moved[1] = best_next_move & 0x003f;
             active_board = carbon_copy;
         }
     }
@@ -220,7 +225,7 @@ void App::Update()
         if (history.cur_idx > 0)
             active_board = history.states[--history.cur_idx];
     }
-    else if (ImGui::IsKeyPressed(ImGuiKey_RightArrow, false))
+    if (ImGui::IsKeyPressed(ImGuiKey_RightArrow, false))
     {
         if (history.cur_idx < history.max_idx)
             active_board = history.states[++history.cur_idx];
@@ -235,6 +240,11 @@ void App::Update()
         history.cur_idx = 0;
         history.max_idx = 0;
     }
+    if (ImGui::IsKeyPressed(ImGuiKey_UpArrow, false))
+        depth++;
+    if (ImGui::IsKeyPressed(ImGuiKey_DownArrow, false))
+        depth--;
+
     // Handle window being minimized or screen locked
     if (g_SwapChainOccluded && g_pSwapChain->Present(0, DXGI_PRESENT_TEST) == DXGI_STATUS_OCCLUDED)
     {
@@ -289,6 +299,8 @@ void App::Update()
         for (int col = 0; col < 8; col++)
         {
             int square_index = view_square(row,col);
+            if (square_index == last_moved[0] || square_index == last_moved[1])
+                square_draw_color = IM_COL32(0, 88, 128, 90);
             if (selected_piece_index!=-1 && (current_move_mask & (1ULL << square_index)))
             {
                 drawList->AddRectFilled(ImVec2(border_padding + square_width * col, border_padding + square_height * row), ImVec2(border_padding + square_width * col + square_width, border_padding + square_height * row + square_height), IM_COL32(255, 12, 12, 50), 0, 0);
@@ -302,18 +314,24 @@ void App::Update()
             }  
             drawList->AddImage((ImTextureID)textures[active_board.get_piece(view_square(row,col))], ImVec2(border_padding + square_width * col, border_padding + square_height * row), ImVec2(border_padding + square_width * col + square_width, border_padding + square_height * row + square_height));
             drawList->AddText(NULL, 21.0f, ImVec2(border_padding + square_width * col + square_width - 25, border_padding + square_height * row + square_height - 20), IM_COL32(255, 0, 0, 255), std::to_string(view_square(row,col)).c_str());            
-            if (square_draw_color == square2_color)
+            if ((row+col) % 2 != 0)
                 square_draw_color = square1_color;
             else
                 square_draw_color = square2_color;
         }
     }
+
+    // dashboard
+    drawList->AddText(NULL, 32.0f, ImVec2(board_width_total_ocp* viewportSize.x + border_padding + 10, 20), IM_COL32(128, 191, 255, 255), ("Depth: " + std::to_string(depth)).c_str());
+
+
     // Rendering
     ImGui::Render();
     const float clear_color_with_alpha[4] = { background_color.x * background_color.w, background_color.y * background_color.w, background_color.z * background_color.w, background_color.w };
     g_pd3dDeviceContext->OMSetRenderTargets(1, &g_mainRenderTargetView, nullptr);
     g_pd3dDeviceContext->ClearRenderTargetView(g_mainRenderTargetView, clear_color_with_alpha);
     ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+
 
     // Present
     HRESULT hr = g_pSwapChain->Present(1, 0);   // Present with vsync
