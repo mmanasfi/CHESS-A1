@@ -34,6 +34,8 @@ int Engine::eval(Board& board)
 
 int Engine::Quiesce(Board& board, int alpha, int beta, int cap)
 {
+	cur_qsearch_nodes++;
+
 	int starting_eval = eval(board);
 	if (board.white_to_move && starting_eval > alpha)
 		alpha = starting_eval;
@@ -108,15 +110,37 @@ int Engine::Quiesce(Board& board, int alpha, int beta, int cap)
 	return most_beneficial_move_eval;
 }
 
-uint16_t Engine::minmax_best_move(Board& board, int depth)
+uint16_t Engine::minmax_best_move(Board& board, int depth, uint16_t cur_best_move_ID)
 {
+	cur_search_nodes = 0;
+	cur_qsearch_nodes = 0;
+
 	MoveList all_moves;
 	board.generate_moves(all_moves);
 	uint16_t most_beneficial_move = UINT_MAX;
 	int most_beneficial_move_eval = board.white_to_move ? INT_MIN : INT_MAX;
 
+	// place ID move at index = 0, to play first then move on with selection sort 
+	if (cur_best_move_ID != 0)
+	{
+		for (int i = 0; i < all_moves.count; i++)
+		{
+			uint16_t cur_move = all_moves.moves[i];
+			if (cur_move == cur_best_move_ID)
+			{
+				uint16_t first = all_moves.moves[0];
+				int first_score = all_moves.scores[0];
+				all_moves.moves[0] = cur_best_move_ID;
+				all_moves.scores[0] = all_moves.scores[i];
+				all_moves.moves[i] = first;
+				all_moves.scores[i] = first_score;
+				break;
+			}
+		}
+	}
+
 	// selection sort
-	for (int i = 0; i <	all_moves.count; i++)
+	for (int i = cur_best_move_ID == 0 ? 0 : 1; i <	all_moves.count; i++)
 	{
 		int max = all_moves.scores[i];
 		int max_idx = i;
@@ -138,6 +162,10 @@ uint16_t Engine::minmax_best_move(Board& board, int depth)
 			all_moves.moves[i] = all_moves.moves[max_idx];
 			all_moves.moves[max_idx] = dst_m;
 		}
+	
+	}
+	for (int i = 0; i < all_moves.count; i++)
+	{
 		uint16_t curMove = all_moves.moves[i];
 		Piece piece_possibly_captured = board.get_piece((curMove & 0x0fc0) >> 6);
 		uint8_t old_cas_flags = board.castling_allowed;
@@ -174,11 +202,15 @@ uint16_t Engine::minmax_best_move(Board& board, int depth)
 		board.castling_allowed = old_cas_flags;
 	}
 
+	cur_prediction_eval = most_beneficial_move_eval;
+
 	return most_beneficial_move;
 }
 
 int Engine::search(Board& board, int depth, int alpha, int beta)
 {
+	cur_search_nodes++;
+
 	if (depth == 0)
 		return Quiesce(board, alpha, beta, Qcap);
 
@@ -261,5 +293,6 @@ int Engine::search(Board& board, int depth, int alpha, int beta)
 		board.unmake_move(piece_possibly_captured, curMove);
 		board.castling_allowed = old_cas_flags;
 	}
+
 	return most_beneficial_move_eval;
 }

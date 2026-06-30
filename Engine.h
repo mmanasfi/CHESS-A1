@@ -169,8 +169,11 @@ namespace ENGINE_CONSTANTS //improve these dogshit PST's
 class Engine
 {
 public:
+	int cur_search_nodes = 0;
+	int cur_qsearch_nodes = 0;
+	int cur_prediction_eval = 0;
 	int eval(Board& b);
 	int Quiesce(Board& board, int alpha, int beta, int cap);
-    uint16_t minmax_best_move(Board& board, int depth);
+    uint16_t minmax_best_move(Board& board, int depth, uint16_t cur_best_move_ID);
     int search(Board& board, int depth, int alpha, int beta);
 };

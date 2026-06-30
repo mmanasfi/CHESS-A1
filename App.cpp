@@ -7,7 +7,8 @@
 #include <bitset>
 #include <Engine.h>
 #include <chrono>
-
+#include <iomanip>
+#include <locale>
 
 // fine cause we're only using one app at a time (obviously)
 
@@ -25,6 +26,8 @@ bool flip_view = false; // white down
 
 int depth = 5;
 int last_moved[2] = {-1,-1};
+
+
 
 //small helper for flip
 int view_square(int row, int col)
@@ -199,7 +202,12 @@ void App::Update()
 
         auto start = std::chrono::high_resolution_clock::now();
 
-        uint16_t best_next_move = e.minmax_best_move(active_board, depth);
+        uint16_t best_next_move = 0;
+        for (int i = 1; i <= depth; i++)
+        {
+            Board temp = active_board; // unmake move is bad, this is a temp fix (some flags not reverted).
+            best_next_move = e.minmax_best_move(temp, i, best_next_move);
+        }
 
         auto end = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
@@ -210,7 +218,17 @@ void App::Update()
         }
         else
         {
-            std::cout << "Move: " << (best_next_move & 0x003f) << " To: " << ((best_next_move & 0x0fc0) >> 6) << " " << e.eval(active_board) << " " << duration.count() << "ms" << "\n";
+            std::cout.imbue(std::locale(""));
+            std::cout 
+                << "---------------------------\n"
+                << "Move: " << (best_next_move & 0x003f) << " To: " << ((best_next_move & 0x0fc0) >> 6)
+                << "\nEval as it stands: " << e.eval(active_board)
+                << "\nEngine end eval: " << e.cur_prediction_eval
+                << "\nTime for search: " << duration.count() << "ms"
+                << "\nNodes searched: " << e.cur_search_nodes
+                << "\nNodes Quiesensce nodes searched: " << e.cur_qsearch_nodes
+                << "\nNPS: " <<std::fixed << std::setprecision(0) <<(e.cur_search_nodes+e.cur_qsearch_nodes)/(duration.count()/1000.f)
+                << "\n";
             Board carbon_copy = active_board;
             carbon_copy.make_move(best_next_move);
             history.states[++history.cur_idx] = carbon_copy;
